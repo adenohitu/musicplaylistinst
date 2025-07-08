@@ -23,7 +23,8 @@
         }
 
         input,
-        select {
+        select,
+        textarea {
             padding: 8px;
             width: 100%;
             margin: 5px 0;
@@ -86,13 +87,16 @@
         // ==== 設定 ==== 
         const developerToken = 'YOUR_DEVELOPER_TOKEN'; // 置き換えてください
 
+        // ==== 変数宣言 ==== 
+        let musicInstance = null;
+
         // ==== MusicKit 初期化 ====
         document.addEventListener('DOMContentLoaded', () => {
             MusicKit.configure({
                 developerToken: developerToken,
                 app: { name: 'Instrumental Playlist Creator', build: '1.0.0' }
             });
-            window.music = MusicKit.getInstance();
+            musicInstance = MusicKit.getInstance();
             log('MusicKit configured.');
         });
 
@@ -111,18 +115,20 @@
         let instrumentalIds = [];
         let newPlaylistId = null;
 
-        // ==== ログ ====
+        // ==== ログ出力関数 ====
         function log(message) {
-            const p = document.createElement('p'); p.textContent = message;
+            const p = document.createElement('p');
+            p.textContent = message;
             logDiv.appendChild(p);
             logDiv.scrollTop = logDiv.scrollHeight;
         }
 
         // ==== Step 1: 認証 ====
         authBtn.addEventListener('click', async () => {
+            if (!musicInstance) { log('MusicKit が初期化されていません'); return; }
             try {
-                await music.authorize();
-                log('認証成功: ' + music.userToken);
+                const userToken = await musicInstance.authorize();
+                log('認証成功: ユーザートークン取得');
                 loadTracksBtn.disabled = false;
                 authBtn.disabled = true;
             } catch (e) {
@@ -136,7 +142,7 @@
             if (!playlistId) { alert('プレイリストIDを入力してください'); return; }
             log(`プレイリスト (${playlistId}) のトラックを取得中...`);
             try {
-                const response = await music.api.library.playlist(playlistId).tracks();
+                const response = await musicInstance.api.library.playlist(playlistId).tracks();
                 originalTracks = response.data.map(item => ({
                     id: item.id,
                     name: item.attributes.name,
@@ -156,7 +162,7 @@
             for (const track of originalTracks) {
                 const term = `${track.name} ${track.artist} instrumental`;
                 try {
-                    const results = await music.api.search(term, { types: ['songs'], limit: 5 });
+                    const results = await musicInstance.api.search(term, { types: ['songs'], limit: 5 });
                     const songs = results.songs.data;
                     const inst = songs.find(s => {
                         const ver = (s.attributes.versionName || '').toLowerCase();
@@ -183,7 +189,7 @@
             if (!name) { alert('名前を入力してください'); return; }
             log('新しいプレイリストを作成中...');
             try {
-                const response = await music.api.createPlaylist({
+                const response = await musicInstance.api.createPlaylist({
                     attributes: { name: name, description: desc }
                 });
                 newPlaylistId = response.data[0].id;
@@ -199,13 +205,12 @@
             if (!newPlaylistId) return;
             log('トラックを追加中...');
             try {
-                await music.api.addToPlaylist(newPlaylistId, instrumentalIds);
+                await musicInstance.api.addToPlaylist(newPlaylistId, instrumentalIds);
                 log('追加完了!');
             } catch (e) {
                 log('追加エラー: ' + e.message);
             }
         });
-
     </script>
 </body>
 
