@@ -1,217 +1,66 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Instrumental Playlist Creator</title>
-    <!-- MusicKit JS CDN -->
+    <link rel="stylesheet" href="style.css">
     <script src="https://js-cdn.music.apple.com/musickit/v1/musickit.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-
-        h2 {
-            margin-top: 30px;
-        }
-
-        button {
-            padding: 10px 20px;
-            margin: 5px 0;
-        }
-
-        input,
-        select,
-        textarea {
-            padding: 8px;
-            width: 100%;
-            margin: 5px 0;
-        }
-
-        #log {
-            border: 1px solid #ccc;
-            padding: 10px;
-            height: 200px;
-            overflow-y: scroll;
-            background: #f9f9f9;
-        }
-
-        section {
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-        }
-    </style>
 </head>
-
 <body>
-    <h1>Instrumental Playlist Creator</h1>
-    <div id="log"></div>
+    <div class="container">
+        <header>
+            <h1>🎵 Instrumental Playlist Creator</h1>
+            <p>Apple Musicのプレイリストからインストゥルメンタル版を検索し、新しいプレイリストを作成します</p>
+        </header>
 
-    <!-- Step 1: Authorization -->
-    <section>
-        <h2>Step 1: 認証</h2>
-        <button id="authBtn">サインイン</button>
-    </section>
+        <main>
+            <section class="auth-section">
+                <button id="authorize-btn" class="btn btn-primary">Apple Musicにサインイン</button>
+                <div id="auth-status" class="auth-status"></div>
+            </section>
 
-    <!-- Step 2: 既存プレイリストID入力 -->
-    <section>
-        <h2>Step 2: 既存プレイリストを指定</h2>
-        <input type="text" id="playlistIdInput" placeholder="プレイリストIDを入力" />
-        <button id="loadTracksBtn" disabled>トラックを取得</button>
-    </section>
+            <section class="playlist-section" id="playlist-section" style="display: none;">
+                <h2>プレイリスト選択</h2>
+                <div class="playlist-selector">
+                    <select id="playlist-select" class="select-box">
+                        <option value="">プレイリストを選択してください</option>
+                    </select>
+                    <button id="load-playlist-btn" class="btn btn-secondary">プレイリストを読み込む</button>
+                </div>
+            </section>
 
-    <!-- Step 3: インストルメンタル検索 -->
-    <section>
-        <h2>Step 3: インスト版を検索</h2>
-        <button id="searchInstBtn" disabled>検索開始</button>
-    </section>
+            <section class="songs-section" id="songs-section" style="display: none;">
+                <h2>楽曲一覧</h2>
+                <div class="songs-header">
+                    <span class="songs-count" id="songs-count">0曲</span>
+                    <button id="search-instrumentals-btn" class="btn btn-accent">インストゥルメンタル版を検索</button>
+                </div>
+                <div id="songs-list" class="songs-list"></div>
+            </section>
 
-    <!-- Step 4: 新規プレイリスト作成 -->
-    <section>
-        <h2>Step 4: 新しいプレイリスト作成</h2>
-        <input type="text" id="newPlaylistName" placeholder="新プレイリスト名" value="Instrumental バージョンのみ" />
-        <textarea id="newPlaylistDesc" placeholder="説明...">インスト版がある曲を自動で集約</textarea>
-        <button id="createPlBtn" disabled>作成</button>
-    </section>
+            <section class="instrumentals-section" id="instrumentals-section" style="display: none;">
+                <h2>見つかったインストゥルメンタル版</h2>
+                <div class="instrumentals-header">
+                    <span class="instrumentals-count" id="instrumentals-count">0曲</span>
+                    <div class="create-playlist-area">
+                        <input type="text" id="new-playlist-name" placeholder="新しいプレイリスト名を入力" class="input-field">
+                        <button id="create-playlist-btn" class="btn btn-success">プレイリストを作成</button>
+                    </div>
+                </div>
+                <div id="instrumentals-list" class="instrumentals-list"></div>
+            </section>
 
-    <!-- Step 5: インスト曲追加 -->
-    <section>
-        <h2>Step 5: インスト曲を追加</h2>
-        <button id="addTracksBtn" disabled>追加</button>
-    </section>
+            <section class="status-section">
+                <div id="status-message" class="status-message"></div>
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>処理中...</span>
+                </div>
+            </section>
+        </main>
+    </div>
 
-    <script>
-        // ==== 設定 ==== 
-        const developerToken = 'YOUR_DEVELOPER_TOKEN'; // 置き換えてください
-
-        // ==== 変数宣言 ==== 
-        let musicInstance = null;
-
-        // ==== MusicKit 初期化 ====
-        document.addEventListener('DOMContentLoaded', () => {
-            MusicKit.configure({
-                developerToken: developerToken,
-                app: { name: 'Instrumental Playlist Creator', build: '1.0.0' }
-            });
-            musicInstance = MusicKit.getInstance();
-            log('MusicKit configured.');
-        });
-
-        // ==== UI 要素 ==== 
-        const authBtn = document.getElementById('authBtn');
-        const loadTracksBtn = document.getElementById('loadTracksBtn');
-        const searchInstBtn = document.getElementById('searchInstBtn');
-        const createPlBtn = document.getElementById('createPlBtn');
-        const addTracksBtn = document.getElementById('addTracksBtn');
-        const playlistIdInput = document.getElementById('playlistIdInput');
-        const newPlaylistName = document.getElementById('newPlaylistName');
-        const newPlaylistDesc = document.getElementById('newPlaylistDesc');
-        const logDiv = document.getElementById('log');
-
-        let originalTracks = [];
-        let instrumentalIds = [];
-        let newPlaylistId = null;
-
-        // ==== ログ出力関数 ====
-        function log(message) {
-            const p = document.createElement('p');
-            p.textContent = message;
-            logDiv.appendChild(p);
-            logDiv.scrollTop = logDiv.scrollHeight;
-        }
-
-        // ==== Step 1: 認証 ====
-        authBtn.addEventListener('click', async () => {
-            if (!musicInstance) { log('MusicKit が初期化されていません'); return; }
-            try {
-                const userToken = await musicInstance.authorize();
-                log('認証成功: ユーザートークン取得');
-                loadTracksBtn.disabled = false;
-                authBtn.disabled = true;
-            } catch (e) {
-                log('認証エラー: ' + e.message);
-            }
-        });
-
-        // ==== Step 2: トラック取得 ====
-        loadTracksBtn.addEventListener('click', async () => {
-            const playlistId = playlistIdInput.value.trim();
-            if (!playlistId) { alert('プレイリストIDを入力してください'); return; }
-            log(`プレイリスト (${playlistId}) のトラックを取得中...`);
-            try {
-                const response = await musicInstance.api.library.playlist(playlistId).tracks();
-                originalTracks = response.data.map(item => ({
-                    id: item.id,
-                    name: item.attributes.name,
-                    artist: item.attributes.artistName
-                }));
-                log(`取得完了: ${originalTracks.length} 曲`);
-                searchInstBtn.disabled = false;
-            } catch (e) {
-                log('取得エラー: ' + e.message);
-            }
-        });
-
-        // ==== Step 3: インスト検索 ====
-        searchInstBtn.addEventListener('click', async () => {
-            instrumentalIds = [];
-            log('インスト版を検索中...');
-            for (const track of originalTracks) {
-                const term = `${track.name} ${track.artist} instrumental`;
-                try {
-                    const results = await musicInstance.api.search(term, { types: ['songs'], limit: 5 });
-                    const songs = results.songs.data;
-                    const inst = songs.find(s => {
-                        const ver = (s.attributes.versionName || '').toLowerCase();
-                        return ver.includes('instrumental') || ver.includes('カラオケ');
-                    });
-                    if (inst) {
-                        instrumentalIds.push(inst.id);
-                        log(`✔ ${track.name} → ${inst.attributes.name}`);
-                    } else {
-                        log(`✘ ${track.name} は見つかりませんでした`);
-                    }
-                } catch (e) {
-                    log(`エラー (${track.name}): ${e.message}`);
-                }
-            }
-            log(`検索完了: ${instrumentalIds.length} 件ヒット`);
-            createPlBtn.disabled = instrumentalIds.length === 0;
-        });
-
-        // ==== Step 4: プレイリスト作成 ====
-        createPlBtn.addEventListener('click', async () => {
-            const name = newPlaylistName.value.trim();
-            const desc = newPlaylistDesc.value.trim();
-            if (!name) { alert('名前を入力してください'); return; }
-            log('新しいプレイリストを作成中...');
-            try {
-                const response = await musicInstance.api.createPlaylist({
-                    attributes: { name: name, description: desc }
-                });
-                newPlaylistId = response.data[0].id;
-                log(`作成完了: ID = ${newPlaylistId}`);
-                addTracksBtn.disabled = false;
-            } catch (e) {
-                log('作成エラー: ' + e.message);
-            }
-        });
-
-        // ==== Step 5: インスト曲追加 ====
-        addTracksBtn.addEventListener('click', async () => {
-            if (!newPlaylistId) return;
-            log('トラックを追加中...');
-            try {
-                await musicInstance.api.addToPlaylist(newPlaylistId, instrumentalIds);
-                log('追加完了!');
-            } catch (e) {
-                log('追加エラー: ' + e.message);
-            }
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
-
 </html>
